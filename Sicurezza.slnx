@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Sicurezza.AppHost/Sicurezza.AppHost.csproj" Id="450b43db-7cb8-4659-9bd7-ab9df597f7b8" />
+  <Project Path="Sicurezza.Web/Sicurezza.Web.csproj" />
+</Solution>
