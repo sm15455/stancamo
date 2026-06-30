@@ -5,19 +5,22 @@ using System.ComponentModel.DataAnnotations;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNpgsqlDataSource("db-postgres");
 builder.AddSqlServerClient("db-sqlserver");
-//string connectionString = builder.Configuration.GetConnectionString("DefaultConnection")!;
+
 var connectionString = builder.Configuration.GetConnectionString("db-sqlserver");
-Console.WriteLine($"DEBUG: Connection String is: {connectionString}"); builder.Services.AddOpenApi();
+Console.WriteLine($"DEBUG: Connection String is: {connectionString}"); 
+
+builder.Services.AddOpenApi();
 var app = builder.Build();
 app.MapOpenApi();
 
+// ==========================================
+// DB1 - SQL SERVER (VERSIONI VULNERABILI)
+// ==========================================
+
 app.MapPost("/api/db1/users/login", async (LoginModel model, SqlConnection connection) =>
 {
-    string query = $"SELECT username FROM Users WHERE password = '{model.Password}' AND Username = '{model.Username}' ";
-    //string query = $"SELECT 1 FROM Users WHERE Username = '{model.Username}' AND password = '{model.Password}'";
-
+    string query = $"SELECT username FROM Users WHERE password = '{model.Password}' AND username = '{model.Username}' ";
     using var command = new SqlCommand(query, connection);
-
     try
     {
         await connection.OpenAsync();
@@ -33,17 +36,15 @@ app.MapPost("/api/db1/users/login", async (LoginModel model, SqlConnection conne
         return Results.Problem(ex.Message);
     }
 })
-    .Produces(200, typeof(string))
-    .Produces(404)
-    .ProducesValidationProblem(400)
-    .ProducesProblem(500);
+.Produces(200, typeof(string))
+.Produces(404)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
 
 app.MapGet("/api/db1/cards/list", async (string text, SqlConnection connection) =>
 {
     string query = $"SELECT number, null, expirydate, 1, issuer FROM Cards WHERE number like '%{text}%' or code like '%{text}%' or issuer like '%{text}%'";
-
     using var command = new SqlCommand(query, connection);
-
     try
     {
         await connection.OpenAsync();
@@ -65,24 +66,27 @@ app.MapGet("/api/db1/cards/list", async (string text, SqlConnection connection) 
         return Results.Problem(ex.Message);
     }
 })
-    .Produces<IEnumerable<CardModel>>(200)
-    .ProducesValidationProblem(400)
-    .ProducesProblem(500);
+.Produces<IEnumerable<CardModel>>(200)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
+
+
+// ==========================================
+// DB2 - POSTGRESQL (VERSIONI VULNERABILI)
+// ==========================================
 
 app.MapPost("/api/db2/users/login", async (LoginModel model, NpgsqlConnection connection) =>
 {
-    string query = $"SELECT nome_utente FROM utenti WHERE pwd = '{model.Password}' AND nome_utente = '{model.Username}' ";
-    //string query = $"SELECT 1 FROM Users WHERE Username = '{model.Username}' AND password = '{model.Password}'";
-
+    // AGGIORNATO: Tabella Users e colonne in inglese
+    string query = $"SELECT username FROM Users WHERE password = '{model.Password}' AND username = '{model.Username}' ";
     using var command = new NpgsqlCommand(query, connection);
-
     try
     {
         await connection.OpenAsync();
         using var reader = await command.ExecuteReaderAsync();
         var isOk = await reader.ReadAsync();
         if (isOk)
-            return Results.Ok(reader["nome_utente"]);
+            return Results.Ok(reader["username"]);
         else
             return Results.NotFound();
     }
@@ -91,17 +95,16 @@ app.MapPost("/api/db2/users/login", async (LoginModel model, NpgsqlConnection co
         return Results.Problem(ex.Message);
     }
 })
-    .Produces(200, typeof(string))
-    .Produces(404)
-    .ProducesValidationProblem(400)
-    .ProducesProblem(500);
+.Produces(200, typeof(string))
+.Produces(404)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
 
 app.MapGet("/api/db2/cards/list", async (string text, NpgsqlConnection connection) =>
 {
-    string query = $"SELECT null, null, null, null, numero, scadenza, emittente FROM carte WHERE numero like '%{text}%' or codice like '%{text}%' or emittente like '%{text}%'";
-
+    // AGGIORNATO: Tabella Cards e colonne in inglese
+    string query = $"SELECT null, null, null, null, number, expirydate, issuer FROM Cards WHERE number like '%{text}%' or code like '%{text}%' or issuer like '%{text}%'";
     using var command = new NpgsqlCommand(query, connection);
-
     try
     {
         await connection.OpenAsync();
@@ -123,12 +126,151 @@ app.MapGet("/api/db2/cards/list", async (string text, NpgsqlConnection connectio
         return Results.Problem(ex.Message);
     }
 })
-    .Produces<IEnumerable<CardModel>>(200)
-    .ProducesValidationProblem(400)
-    .ProducesProblem(500);
+.Produces<IEnumerable<CardModel>>(200)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
+
+
+// ==========================================
+// DB1 - SQL SERVER (VERSIONI SICURE)
+// ==========================================
+
+app.MapPost("/api/db1/users/login-secure", async (LoginModel model, SqlConnection connection) =>
+{
+    string query = "SELECT username FROM Users WHERE password = @password AND username = @username";
+    using var command = new SqlCommand(query, connection);
+    command.Parameters.AddWithValue("@username", model.Username);
+    command.Parameters.AddWithValue("@password", model.Password);
+    try
+    {
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var isOk = await reader.ReadAsync();
+        if (isOk)
+            return Results.Ok(reader["username"]);
+        else
+            return Results.NotFound();
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+})
+.Produces(200, typeof(string))
+.Produces(404)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
+
+app.MapGet("/api/db1/cards/list-secure", async (string text, SqlConnection connection) =>
+{
+    // CORRETTO: Adesso usa Cards e le colonne inglesi coerenti con il database
+    string query = @"
+        SELECT number, expirydate, issuer 
+        FROM Cards 
+        WHERE number LIKE @search 
+           OR code LIKE @search 
+           OR issuer LIKE @search";
+
+    using var command = new SqlCommand(query, connection);
+    command.Parameters.AddWithValue("@search", $"%{text}%");
+    try
+    {
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var result = new List<CardModel>();
+        while (await reader.ReadAsync())
+        {
+            var dbDate = reader.GetDateTime(reader.GetOrdinal("expirydate"));
+            result.Add(new CardModel
+            {
+                Number = reader.GetString(reader.GetOrdinal("number")),
+                ExpiryDate = DateOnly.FromDateTime(dbDate),
+                Issuer = reader.GetString(reader.GetOrdinal("issuer"))
+            });
+        }
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+})
+.Produces<IEnumerable<CardModel>>(200)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
+
+
+// ==========================================
+// DB2 - POSTGRESQL (VERSIONI SICURE)
+// ==========================================
+
+app.MapPost("/api/db2/users/login-secure", async (LoginModel model, NpgsqlConnection connection) =>
+{
+    // AGGIORNATO: Tabella Users e parametri in inglese
+    string query = "SELECT username FROM Users WHERE password = @password AND username = @username";
+    using var command = new NpgsqlCommand(query, connection);
+    command.Parameters.AddWithValue("@username", model.Username);
+    command.Parameters.AddWithValue("@password", model.Password);
+    try
+    {
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var isOk = await reader.ReadAsync();
+        if (isOk)
+            return Results.Ok(reader["username"]);
+        else
+            return Results.NotFound();
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+})
+.Produces(200, typeof(string))
+.Produces(404)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
+
+app.MapGet("/api/db2/cards/list-secure", async (string text, NpgsqlConnection connection) =>
+{
+    // AGGIORNATO: Query sicura su schema inglese
+    string query = @"
+        SELECT number, expirydate, issuer 
+        FROM Cards 
+        WHERE number LIKE @search 
+           OR code LIKE @search 
+           OR issuer LIKE @search";
+
+    using var command = new NpgsqlCommand(query, connection);
+    command.Parameters.AddWithValue("@search", $"%{text}%");
+    try
+    {
+        await connection.OpenAsync();
+        using var reader = await command.ExecuteReaderAsync();
+        var result = new List<CardModel>();
+        while (await reader.ReadAsync())
+        {
+            result.Add(new CardModel
+            {
+                Number = reader.GetString(reader.GetOrdinal("number")),
+                ExpiryDate = DateOnly.FromDateTime(reader.GetDateTime(reader.GetOrdinal("expirydate"))),
+                Issuer = reader.GetString(reader.GetOrdinal("issuer"))
+            });
+        }
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+})
+.Produces<IEnumerable<CardModel>>(200)
+.ProducesValidationProblem(400)
+.ProducesProblem(500);
 
 app.Run();
 
+// DTO Models
 class LoginModel
 {
     [Required]
