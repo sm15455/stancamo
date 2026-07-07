@@ -1,0 +1,43 @@
+USE [db-sqlserver];
+GO
+
+-- Pulizia se per caso c'era già qualcosa
+IF OBJECT_ID('dbo.Cards', 'U') IS NOT NULL DROP TABLE dbo.Cards;
+IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL DROP TABLE dbo.Users;
+GO
+
+-- Creazione della tabella Cards
+CREATE TABLE [dbo].[Cards](
+    [Username] [varchar](100) NOT NULL,
+    [Number] [varchar](16) NOT NULL,
+    [Code] [varchar](3) NOT NULL,
+    [ExpiryDate] [date] NOT NULL,
+    [Issuer] [varchar](50) NOT NULL,
+ CONSTRAINT [PK_Cards] PRIMARY KEY CLUSTERED ([Username] ASC, [Number] ASC)
+) ON [PRIMARY]
+GO
+
+-- Creazione della tabella Users
+CREATE TABLE [dbo].[Users](
+    [Username] [varchar](100) NOT NULL,
+    [Password] [varchar](100) NOT NULL,
+    [FirstName] [varchar](100) NOT NULL,
+    [LastName] [varchar](100) NOT NULL,
+ CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ([Username] ASC)
+) ON [PRIMARY]
+GO
+
+-- Inserimento dati reali nelle tue tabelle
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'useguest', N'1234888888881234', N'222', '2026-01-29', N'Mastercard')
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'guest', N'1234123412341234', N'222', '2026-01-31', N'Mastercard')
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'guest', N'1234123412341235', N'222', '2026-01-31', N'Visa')
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'utente', N'9876543210987654', N'222', '2026-01-31', N'Visa')
+
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'aaGuestUser', N'pwd', N'guestus', N'guests')
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'admin', N'pwd', N'admin', N'admin')
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'guest', N'pwdguest', N'guest', N'guest')
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'utente', N'pwdguest', N'utente', N'utente')
+GO
+
+GRANT SELECT ON Cards TO app_reader;
+GRANT SELECT ON Users TO app_reader;

@@ -1,0 +1,36 @@
+USE [master];
+GO
+
+-- Pulizia se per caso c'era già qualcosa
+IF OBJECT_ID('dbo.Cards', 'U') IS NOT NULL DROP TABLE dbo.Cards;
+IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL DROP TABLE dbo.Users;
+GO
+
+CREATE TABLE [dbo].[Cards](
+    [Username] [varchar](100) NOT NULL,
+    [Number] [varchar](16) NOT NULL,
+    [Code] [varchar](3) NOT NULL,
+    [ExpiryDate] [date] NOT NULL,
+    [Issuer] [varchar](50) NOT NULL,
+ CONSTRAINT [PK_Cards] PRIMARY KEY CLUSTERED ([Username] ASC, [Number] ASC)
+) ON [PRIMARY]
+GO
+
+CREATE TABLE [dbo].[Users](
+    [Username] [varchar](100) NOT NULL,
+    [Password] [varchar](100) NOT NULL,
+    [FirstName] [varchar](100) NOT NULL,
+    [LastName] [varchar](100) NOT NULL,
+ CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ([Username] ASC)
+) ON [PRIMARY]
+GO
+
+-- Inserimento dati reali
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'guest', N'1234123412341234', N'222', CAST(N'2026-01-31' AS Date), N'Mastercard')
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'guest', N'1234123412341235', N'222', CAST(N'2026-01-31' AS Date), N'Visa')
+INSERT [dbo].[Cards] ([Username], [Number], [Code], [ExpiryDate], [Issuer]) VALUES (N'utente', N'9876543210987654', N'222', CAST(N'2026-01-31' AS Date), N'Visa')
+
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'admin', N'pwd', N'admin', N'admin')
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'guest', N'pwdguest', N'guest', N'guest')
+INSERT [dbo].[Users] ([Username], [Password], [FirstName], [LastName]) VALUES (N'utente', N'pwdguest', N'utente', N'utente')
+GO

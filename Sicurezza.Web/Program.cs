@@ -3,16 +3,30 @@ using Npgsql;
 using System.ComponentModel.DataAnnotations;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddNpgsqlDataSource("db-postgres");
-builder.AddSqlServerClient("db-sqlserver");
 
-var connectionString = builder.Configuration.GetConnectionString("db-sqlserver");
-Console.WriteLine($"DEBUG: Connection String is: {connectionString}"); 
+// ============================================================================
+// 🔒 1. BLINDO POSTGRESQL: DISATTIVIAMO ASPIRE E FORZIAMO L'UTENTE LIMITATO
+// ============================================================================
+// Commentiamo la riga nativa così Aspire SMETTE di iniettare il superuser 'postgres'
+// builder.AddNpgsqlDataSource("db-postgres"); 
+
+// Registriamo manualmente la sorgente dati Postgres usando l'utente limitato app_reader
+// Modifica la riga inserendo la porta corretta presa dalla dashboard di Aspire
+builder.Services.AddNpgsqlDataSource("Host=localhost;Port=57476;Database=db-postgres;Username=app_reader;Password=PasswordSicura123!;");
+// ============================================================================
+
+
+// ============================================================================
+// 🔒 2. BLINDO SQL SERVER (Come fatto in precedenza)
+// ============================================================================
+// builder.AddSqlServerClient("db-sqlserver"); 
+builder.Services.AddScoped(_ => new SqlConnection("Server=127.0.0.1,57477;Database=db-sqlserver;User ID=app_reader;Password=PasswordSicura123!;TrustServerCertificate=true"));
+// ============================================================================
 
 builder.Services.AddOpenApi();
+
 var app = builder.Build();
 app.MapOpenApi();
-
 // ==========================================
 // DB1 - SQL SERVER (VERSIONI VULNERABILI)
 // ==========================================

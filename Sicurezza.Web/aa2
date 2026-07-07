@@ -1,0 +1,2 @@
+USE [db-sqlserver];
+SELECT * FROM Cards;
