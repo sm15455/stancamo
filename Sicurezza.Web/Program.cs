@@ -1,14 +1,25 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.IdentityModel.Tokens;
 using Npgsql;
 using System.ComponentModel.DataAnnotations;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
 // ============================================================================
-// 🔒 1. BLINDO POSTGRESQL: DISATTIVIAMO ASPIRE E FORZIAMO L'UTENTE LIMITATO
+// 1. BLINDO POSTGRESQL: DISATTIVIAMO ASPIRE E FORZIAMO L'UTENTE LIMITATO
 // ============================================================================
 // Commentiamo la riga nativa così Aspire SMETTE di iniettare il superuser 'postgres'
-// builder.AddNpgsqlDataSource("db-postgres"); 
+builder.AddNpgsqlDataSource("db-postgres", c =>
+{
+    var cs = builder.Configuration.GetConnectionString("db-postgres");
+
+    var sb = new NpgsqlConnectionStringBuilder(cs);
+    sb.Username = builder.Configuration.GetValue<string>("Postgres:Username");
+    sb.Password = builder.Configuration.GetValue<string>("Postgres:Password");
+    c.ConnectionString = sb.ConnectionString;
+});
 
 // Registriamo manualmente la sorgente dati Postgres usando l'utente limitato app_reader
 // Modifica la riga inserendo la porta corretta presa dalla dashboard di Aspire
@@ -17,10 +28,19 @@ builder.Services.AddNpgsqlDataSource("Host=localhost;Port=57476;Database=db-post
 
 
 // ============================================================================
-// 🔒 2. BLINDO SQL SERVER (Come fatto in precedenza)
+// 2. BLINDO SQL SERVER (Come fatto in precedenza)
 // ============================================================================
-// builder.AddSqlServerClient("db-sqlserver"); 
-builder.Services.AddScoped(_ => new SqlConnection("Server=127.0.0.1,57477;Database=db-sqlserver;User ID=app_reader;Password=PasswordSicura123!;TrustServerCertificate=true"));
+builder.AddSqlServerClient("db-sqlserver", c =>
+{
+    var cs = builder.Configuration.GetConnectionString("db-sqlserver");
+
+    var sb = new SqlConnectionStringBuilder(cs);
+    sb.UserID = builder.Configuration.GetValue<string>("SqlServer:Username");
+    sb.Password = builder.Configuration.GetValue<string>("SqlServer:Password");
+    c.ConnectionString = sb.ConnectionString;
+});
+
+//builder.Services.AddScoped(_ => new SqlConnection("Server=127.0.0.1,57477;Database=db-sqlserver;User ID=app_reader;Password=PasswordSicura123!;TrustServerCertificate=true"));
 // ============================================================================
 
 builder.Services.AddOpenApi();
@@ -33,7 +53,7 @@ app.MapOpenApi();
 
 app.MapPost("/api/db1/users/login", async (LoginModel model, SqlConnection connection) =>
 {
-    string query = $"SELECT username FROM Users WHERE password = '{model.Password}' AND username = '{model.Username}' ";
+    string query = $"SELECT username FROM Users WHERE password = '{model.Password}' AND username = '{model.Username}' order by userid";
     using var command = new SqlCommand(query, connection);
     try
     {
@@ -41,7 +61,7 @@ app.MapPost("/api/db1/users/login", async (LoginModel model, SqlConnection conne
         using var reader = await command.ExecuteReaderAsync();
         var isOk = await reader.ReadAsync();
         if (isOk)
-            return Results.Ok(reader["username"]);
+            return Results.Ok(GenerateToken(reader.GetString(0)));
         else
             return Results.NotFound();
     }
@@ -50,7 +70,7 @@ app.MapPost("/api/db1/users/login", async (LoginModel model, SqlConnection conne
         return Results.Problem(ex.Message);
     }
 })
-.Produces(200, typeof(string))
+.Produces<string>(200)
 .Produces(404)
 .ProducesValidationProblem(400)
 .ProducesProblem(500);
@@ -100,7 +120,7 @@ app.MapPost("/api/db2/users/login", async (LoginModel model, NpgsqlConnection co
         using var reader = await command.ExecuteReaderAsync();
         var isOk = await reader.ReadAsync();
         if (isOk)
-            return Results.Ok(reader["username"]);
+            return Results.Ok(GenerateToken(reader.GetString(0)));
         else
             return Results.NotFound();
     }
@@ -109,14 +129,13 @@ app.MapPost("/api/db2/users/login", async (LoginModel model, NpgsqlConnection co
         return Results.Problem(ex.Message);
     }
 })
-.Produces(200, typeof(string))
+.Produces<string>(200)
 .Produces(404)
 .ProducesValidationProblem(400)
 .ProducesProblem(500);
 
 app.MapGet("/api/db2/cards/list", async (string text, NpgsqlConnection connection) =>
 {
-    // AGGIORNATO: Tabella Cards e colonne in inglese
     string query = $"SELECT null, null, null, null, number, expirydate, issuer FROM Cards WHERE number like '%{text}%' or code like '%{text}%' or issuer like '%{text}%'";
     using var command = new NpgsqlCommand(query, connection);
     try
@@ -161,7 +180,7 @@ app.MapPost("/api/db1/users/login-secure", async (LoginModel model, SqlConnectio
         using var reader = await command.ExecuteReaderAsync();
         var isOk = await reader.ReadAsync();
         if (isOk)
-            return Results.Ok(reader["username"]);
+            return Results.Ok(GenerateToken(reader.GetString(0)));
         else
             return Results.NotFound();
     }
@@ -170,7 +189,7 @@ app.MapPost("/api/db1/users/login-secure", async (LoginModel model, SqlConnectio
         return Results.Problem(ex.Message);
     }
 })
-.Produces(200, typeof(string))
+.Produces<string>(200)
 .Produces(404)
 .ProducesValidationProblem(400)
 .ProducesProblem(500);
@@ -231,7 +250,7 @@ app.MapPost("/api/db2/users/login-secure", async (LoginModel model, NpgsqlConnec
         using var reader = await command.ExecuteReaderAsync();
         var isOk = await reader.ReadAsync();
         if (isOk)
-            return Results.Ok(reader["username"]);
+            return Results.Ok(GenerateToken(reader.GetString(0)));
         else
             return Results.NotFound();
     }
@@ -240,7 +259,7 @@ app.MapPost("/api/db2/users/login-secure", async (LoginModel model, NpgsqlConnec
         return Results.Problem(ex.Message);
     }
 })
-.Produces(200, typeof(string))
+.Produces<string>(200)
 .Produces(404)
 .ProducesValidationProblem(400)
 .ProducesProblem(500);
@@ -283,6 +302,28 @@ app.MapGet("/api/db2/cards/list-secure", async (string text, NpgsqlConnection co
 .ProducesProblem(500);
 
 app.Run();
+
+
+string GenerateToken(string username)
+{
+    var claims = new List<Claim>
+    {
+        new("sub", username)
+    };
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("SGYWdsgsku5y4w3gSDge9=£sfaf.w56£$as{35yagdsgsdGSGsdhWE%323GS$&76G4WEyi=?'dgssdASFfa8676DHSH(£sdvfs"));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
+    var expires = DateTime.UtcNow.AddMinutes(15);
+
+    var token = new JwtSecurityToken(
+        issuer: "Issuer",
+        audience: "Audience",
+        claims: claims,
+        expires: expires,
+        signingCredentials: creds);
+
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
 
 // DTO Models
 class LoginModel

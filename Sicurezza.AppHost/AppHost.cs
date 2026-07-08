@@ -20,7 +20,7 @@ var sqlServer = builder.AddSqlServer("sqlserver")
                           c.Port = 57477;
                           c.TargetPort = 1433;
                       })
-                    .AddDatabase("db-sqlserver");
+                      .AddDatabase("db-sqlserver");
 
 builder.AddProject<Projects.Sicurezza_Web>("sicurezza-web")
     .WithReference(sqlServer)

