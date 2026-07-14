@@ -7,10 +7,6 @@ using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-// ============================================================================
-// 1. BLINDO POSTGRESQL: DISATTIVIAMO ASPIRE E FORZIAMO L'UTENTE LIMITATO
-// ============================================================================
-// Commentiamo la riga nativa così Aspire SMETTE di iniettare il superuser 'postgres'
 builder.AddNpgsqlDataSource("db-postgres", c =>
 {
     var cs = builder.Configuration.GetConnectionString("db-postgres");
@@ -21,15 +17,6 @@ builder.AddNpgsqlDataSource("db-postgres", c =>
     c.ConnectionString = sb.ConnectionString;
 });
 
-// Registriamo manualmente la sorgente dati Postgres usando l'utente limitato app_reader
-// Modifica la riga inserendo la porta corretta presa dalla dashboard di Aspire
-builder.Services.AddNpgsqlDataSource("Host=localhost;Port=57476;Database=db-postgres;Username=app_reader;Password=PasswordSicura123!;");
-// ============================================================================
-
-
-// ============================================================================
-// 2. BLINDO SQL SERVER (Come fatto in precedenza)
-// ============================================================================
 builder.AddSqlServerClient("db-sqlserver", c =>
 {
     var cs = builder.Configuration.GetConnectionString("db-sqlserver");
@@ -39,9 +26,6 @@ builder.AddSqlServerClient("db-sqlserver", c =>
     sb.Password = builder.Configuration.GetValue<string>("SqlServer:Password");
     c.ConnectionString = sb.ConnectionString;
 });
-
-//builder.Services.AddScoped(_ => new SqlConnection("Server=127.0.0.1,57477;Database=db-sqlserver;User ID=app_reader;Password=PasswordSicura123!;TrustServerCertificate=true"));
-// ============================================================================
 
 builder.Services.AddOpenApi();
 

